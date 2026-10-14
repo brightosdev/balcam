@@ -1,0 +1,392 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#080b12">
+<title>BALCAM — Bright</title>
+<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<style>
+:root{color-scheme:dark;--bg:#080b12;--panel:#111722;--line:#253143;--blue:#67a8ff;--text:#f4f7ff;--muted:#94a3b8}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+header{padding:22px 18px 16px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;gap:12px}
+.brand{display:flex;align-items:center;gap:12px}
+.logo{width:44px;height:44px;border-radius:14px;background:linear-gradient(135deg,#5da8ff,#6654dd);display:grid;place-items:center;font-size:23px}
+h1{font-size:22px;margin:0;letter-spacing:1px}
+.subtitle{color:var(--muted);font-size:12px;margin-top:4px}
+.bright{font-size:11px;color:#a8caff;border:1px solid #294365;padding:7px 10px;border-radius:20px}
+main{max-width:1050px;margin:auto;padding:20px 14px 50px}
+h2{font-size:19px;margin:0 0 8px}
+p{color:var(--muted);line-height:1.5}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:18px;margin-bottom:16px}
+.modes{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:18px 0}
+button,input{font:inherit}
+button{cursor:pointer;border:1px solid var(--line);border-radius:12px;background:#1a2433;color:var(--text);padding:12px 14px;font-weight:650}
+button:disabled{opacity:.45;cursor:not-allowed}
+button.primary{background:var(--blue);border-color:var(--blue);color:#07111f}
+button.danger{background:#391d29;border-color:#713348;color:#ffb9c8}
+button.selected{border-color:var(--blue);box-shadow:0 0 0 1px var(--blue)}
+input{width:100%;background:#090e17;color:white;border:1px solid var(--line);padding:13px;border-radius:11px;margin:7px 0 12px}
+label{font-size:13px;color:#c7d2e3}
+.hidden{display:none!important}
+.status{font-size:13px;color:var(--muted);margin-top:12px;overflow-wrap:anywhere}
+.room{font-size:34px;font-weight:800;letter-spacing:6px;color:var(--blue);margin:14px 0}
+.toolbar{display:flex;gap:9px;flex-wrap:wrap;margin:16px 0}
+.toolbar button{flex:1;min-width:120px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px}
+.camera{background:#090e17;border:1px solid var(--line);border-radius:15px;overflow:hidden;min-width:0}
+.camera video{display:block;width:100%;aspect-ratio:16/9;object-fit:cover;background:#030508}
+.caminfo{padding:12px;display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:13px}
+.dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:#687789;margin-right:6px}
+.dot.live{background:#ff455f;box-shadow:0 0 8px #ff455f}
+.note{font-size:12px;color:var(--muted)}
+footer{text-align:center;color:#68778b;font-size:12px;padding:12px}
+#localPreview{width:100%;max-height:52vh;object-fit:contain;background:#030508;border-radius:12px}
+@media(max-width:480px){header{padding:16px 12px}.bright{font-size:10px}main{padding:14px 10px 36px}.panel{padding:14px}.room{font-size:29px}}
+</style>
+</head>
+<body>
+<header>
+  <div class="brand">
+    <div class="logo">◉</div>
+    <div><h1>BALCAM</h1><div class="subtitle">Multi-camera studio</div></div>
+  </div>
+  <div class="bright">A BRIGHT PROJECT</div>
+</header>
+
+<main>
+  <section class="panel">
+    <h2>Welcome to BALCAM</h2>
+    <p>Turn your devices into cameras. Connect them to one studio and record together.</p>
+    <div class="modes">
+      <button id="studioMode" class="selected" onclick="chooseMode('studio')">▦ Studio</button>
+      <button id="cameraMode" onclick="chooseMode('camera')">▣ Camera</button>
+    </div>
+    <div id="setupStatus" class="status">Choose a mode to get started.</div>
+  </section>
+
+  <section id="studioPanel" class="panel">
+    <h2>Your studio</h2>
+    <p>Open Camera mode on each other device and enter this room code.</p>
+    <div id="roomCode" class="room">------</div>
+    <button id="newRoom" onclick="startStudio()" class="primary">Create studio</button>
+    <div class="toolbar">
+      <button id="recordAll" class="danger" onclick="controlAll('start')" disabled>● Record All</button>
+      <button id="stopAll" onclick="controlAll('stop')" disabled>■ Stop All</button>
+    </div>
+    <div id="cameraCount" class="status">No cameras connected yet.</div>
+    <div id="cameraGrid" class="grid"></div>
+  </section>
+
+  <section id="cameraPanel" class="panel hidden">
+    <h2>Join as a camera</h2>
+    <p>Enter the room code shown on the studio screen.</p>
+    <label for="cameraName">Camera name</label>
+    <input id="cameraName" maxlength="30" value="Camera 1" autocomplete="off">
+    <label for="roomInput">Studio room code</label>
+    <input id="roomInput" maxlength="6" placeholder="e.g. a7k2mp" autocapitalize="none" autocomplete="off">
+    <button id="joinButton" class="primary" onclick="joinStudio()">Connect camera</button>
+    <div class="toolbar">
+      <button id="localRecord" onclick="recordLocal()" disabled>● Record on this device</button>
+      <button id="localStop" onclick="stopLocal()" disabled>■ Stop recording</button>
+    </div>
+    <video id="localPreview" autoplay muted playsinline></video>
+    <div id="cameraStatus" class="status">Not connected.</div>
+    <div id="saveArea" class="status"></div>
+  </section>
+
+  <section class="panel">
+    <h2>How it works</h2>
+    <p class="note">BALCAM uses WebRTC for direct device-to-device media when the network allows it. An internet-based signalling service helps devices connect. Network restrictions may prevent connections. Video is not intentionally uploaded to a video-storage server.</p>
+    <p class="note">Keep your room code private. Only share it with people you trust. Recordings are saved separately on each camera device.</p>
+  </section>
+</main>
+<footer>BALCAM · Bright project · Early prototype</footer>
+
+<script>
+const $ = id => document.getElementById(id);
+let mode = "studio";
+let peer = null;
+let localStream = null;
+let dataConnection = null;
+let localRecorder = null;
+let localChunks = [];
+let studioStarted = false;
+const cameras = new Map();
+
+function setStatus(message) {
+  $("setupStatus").textContent = message;
+}
+function setCameraStatus(message) {
+  $("cameraStatus").textContent = message;
+}
+function chooseMode(next) {
+  mode = next;
+  $("studioMode").classList.toggle("selected", next === "studio");
+  $("cameraMode").classList.toggle("selected", next === "camera");
+  $("studioPanel").classList.toggle("hidden", next !== "studio");
+  $("cameraPanel").classList.toggle("hidden", next !== "camera");
+  if (next === "studio" && !studioStarted) setStatus("Create a studio to get a room code.");
+  if (next === "camera") setStatus("Enter a room code to connect a camera.");
+}
+
+function randomCode() {
+  const chars = "abcdefghjkmnpqrstuvwxyz23456789";
+  let result = "";
+  for (let i=0;i<6;i++) result += chars[Math.floor(Math.random()*chars.length)];
+  return result;
+}
+function makePeer(id) {
+  return new Promise((resolve,reject) => {
+    const p = new Peer(id, {
+      host:"0.peerjs.com", port:443, path:"/", secure:true
+    });
+    const timeout = setTimeout(() => {
+      p.destroy();
+      reject(new Error("Connection service timed out. Check your internet connection and try again."));
+    }, 15000);
+    p.on("open", () => { clearTimeout(timeout); resolve(p); });
+    p.on("error", err => {
+      clearTimeout(timeout);
+      reject(err);
+    });
+  });
+}
+function peerError(err) {
+  console.error(err);
+  const message = err && err.type === "unavailable-id"
+    ? "That room code is already in use. Create a new studio."
+    : "Connection problem: " + (err?.message || err?.type || "please try again.");
+  setStatus(message);
+  setCameraStatus(message);
+}
+
+async function startStudio() {
+  $("newRoom").disabled = true;
+  setStatus("Creating your studio…");
+  try {
+    if (peer) peer.destroy();
+    studioStarted = false;
+    let newPeer, code;
+    for (let i=0;i<4;i++) {
+      code = randomCode();
+      try {
+        newPeer = await makePeer("balcam-" + code);
+        break;
+      } catch (err) {
+        if (err?.type !== "unavailable-id") throw err;
+      }
+    }
+    if (!newPeer) throw new Error("Couldn't create a room. Please try again.");
+    peer = newPeer;
+    studioStarted = true;
+    $("roomCode").textContent = code.toUpperCase();
+    setStatus("Studio ready. Enter the code on your camera devices.");
+    peer.on("connection", conn => setupDataConnection(conn));
+    peer.on("call", call => {
+      call.answer();
+      call.on("stream", stream => addCameraStream(call.peer, stream));
+      call.on("error", peerError);
+      call.on("close", () => removeCamera(call.peer));
+    });
+    peer.on("error", peerError);
+  } catch(err) {
+    peerError(err);
+  } finally {
+    $("newRoom").disabled = false;
+  }
+}
+
+function getCamera(id) {
+  if (cameras.has(id)) return cameras.get(id);
+  const card = document.createElement("div");
+  card.className = "camera";
+  const video = document.createElement("video");
+  video.autoplay = true;
+  video.playsInline = true;
+  video.muted = true;
+  const info = document.createElement("div");
+  info.className = "caminfo";
+  const name = document.createElement("span");
+  name.textContent = "Connecting…";
+  const state = document.createElement("span");
+  state.innerHTML = '<span class="dot"></span>Connecting';
+  info.append(name,state);
+  card.append(video,info);
+  $("cameraGrid").append(card);
+  const item = {id,card,video,name,state,conn:null,call:null,recording:false};
+  cameras.set(id,item);
+  updateCameraCount();
+  return item;
+}
+function setupDataConnection(conn) {
+  const item = getCamera(conn.peer);
+  item.conn = conn;
+  conn.on("open", () => {
+    item.state.innerHTML = '<span class="dot"></span>Connected';
+    updateCameraCount();
+  });
+  conn.on("data", data => {
+    if (!data || typeof data !== "object") return;
+    if (data.type === "camera-ready") item.name.textContent = data.name || "Camera";
+    if (data.type === "recording") {
+      item.recording = !!data.active;
+      item.state.innerHTML = item.recording
+        ? '<span class="dot live"></span>Recording'
+        : '<span class="dot"></span>Connected';
+    }
+    if (data.type === "camera-error") item.state.textContent = data.message || "Camera error";
+  });
+  conn.on("close", () => removeCamera(conn.peer));
+  conn.on("error", peerError);
+}
+function addCameraStream(id, stream) {
+  const item = getCamera(id);
+  item.video.srcObject = stream;
+  item.state.innerHTML = '<span class="dot"></span>Live';
+  item.video.play().catch(()=>{});
+  updateCameraCount();
+}
+function removeCamera(id) {
+  const item = cameras.get(id);
+  if (!item) return;
+  item.card.remove();
+  cameras.delete(id);
+  updateCameraCount();
+}
+function updateCameraCount() {
+  const count = cameras.size;
+  $("cameraCount").textContent = count
+    ? count + (count===1 ? " camera connected." : " cameras connected.")
+    : "No cameras connected yet.";
+  $("recordAll").disabled = count===0;
+  $("stopAll").disabled = count===0;
+}
+
+function controlAll(action) {
+  let sent = 0;
+  for (const item of cameras.values()) {
+    if (item.conn && item.conn.open) {
+      item.conn.send({type:"record",action});
+      sent++;
+    }
+  }
+  setStatus(action==="start"
+    ? "Record command sent to " + sent + " camera(s). Check each camera's status."
+    : "Stop command sent to " + sent + " camera(s).");
+}
+
+async function joinStudio() {
+  const code = $("roomInput").value.trim().toLowerCase().replace(/[^a-z0-9]/g,"");
+  const name = $("cameraName").value.trim() || "Camera";
+  if (code.length !== 6) {
+    setCameraStatus("Please enter the six-character studio code.");
+    return;
+  }
+  $("joinButton").disabled = true;
+  setCameraStatus("Requesting camera permission…");
+  try {
+    if (peer) peer.destroy();
+    if (localStream) localStream.getTracks().forEach(t=>t.stop());
+    localStream = await navigator.mediaDevices.getUserMedia({
+      video:{facingMode:"environment",width:{ideal:1280},height:{ideal:720}},
+      audio:true
+    });
+    $("localPreview").srcObject = localStream;
+    setCameraStatus("Connecting to studio…");
+    peer = await makePeer();
+    const roomId = "balcam-" + code;
+    dataConnection = peer.connect(roomId, {reliable:true,serialization:"json"});
+    dataConnection.on("open", () => {
+      dataConnection.send({type:"camera-ready",name});
+      setCameraStatus("Connected! Keep this page open while recording.");
+      $("localRecord").disabled = false;
+    });
+    dataConnection.on("data", data => {
+      if (data?.type === "record") {
+        if (data.action === "start") recordLocal();
+        if (data.action === "stop") stopLocal();
+      }
+    });
+    dataConnection.on("error", peerError);
+    dataConnection.on("close", () => setCameraStatus("Studio connection closed."));
+    const call = peer.call(roomId, localStream);
+    call.on("error", peerError);
+    call.on("close", () => setCameraStatus("Video connection closed."));
+    peer.on("error", peerError);
+    setCameraStatus("Connecting… allow a few seconds for the studio to appear.");
+  } catch(err) {
+    peerError(err);
+    if (localStream) {
+      localStream.getTracks().forEach(t=>t.stop());
+      localStream = null;
+    }
+  } finally {
+    $("joinButton").disabled = false;
+  }
+}
+
+function supportedMimeType() {
+  if (!window.MediaRecorder) return "";
+  const types = ["video/mp4","video/webm;codecs=vp9,opus","video/webm;codecs=vp8,opus","video/webm"];
+  return types.find(t => MediaRecorder.isTypeSupported(t)) || "";
+}
+function recordLocal() {
+  if (!localStream) {
+    setCameraStatus("Connect to a studio first.");
+    return;
+  }
+  if (localRecorder && localRecorder.state === "recording") return;
+  if (!window.MediaRecorder) {
+    setCameraStatus("Recording is not supported in this browser. Try an updated Safari or Chrome.");
+    return;
+  }
+  try {
+    localChunks = [];
+    const mimeType = supportedMimeType();
+    localRecorder = new MediaRecorder(localStream, mimeType ? {mimeType} : undefined);
+    localRecorder.ondataavailable = e => { if (e.data && e.data.size) localChunks.push(e.data); };
+    localRecorder.onerror = () => setCameraStatus("Recording failed. Please try again.");
+    localRecorder.onstop = () => saveRecording(mimeType);
+    localRecorder.start(1000);
+    $("localRecord").disabled = true;
+    $("localStop").disabled = false;
+    setCameraStatus("● Recording on this device.");
+    if (dataConnection?.open) dataConnection.send({type:"recording",active:true});
+  } catch(err) {
+    setCameraStatus("Couldn't start recording: " + err.message);
+  }
+}
+function stopLocal() {
+  if (!localRecorder || localRecorder.state !== "recording") return;
+  localRecorder.stop();
+  $("localRecord").disabled = false;
+  $("localStop").disabled = true;
+  setCameraStatus("Finishing recording…");
+  if (dataConnection?.open) dataConnection.send({type:"recording",active:false});
+}
+function saveRecording(mimeType) {
+  const type = localChunks[0]?.type || mimeType || "video/webm";
+  const blob = new Blob(localChunks,{type});
+  const url = URL.createObjectURL(blob);
+  const extension = type.includes("mp4") ? "mp4" : "webm";
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "BALCAM-" + new Date().toISOString().replace(/[:.]/g,"-") + "." + extension;
+  a.textContent = "Save your recording";
+  a.style.display = "inline-block";
+  a.style.padding = "12px";
+  a.style.color = "#9bc7ff";
+  a.style.fontWeight = "700";
+  $("saveArea").replaceChildren(a);
+  a.click();
+  setCameraStatus("Recording finished. If it didn't save automatically, tap “Save your recording”.");
+  localChunks = [];
+}
+
+chooseMode("studio");
+</script>
+</body>
+</html>
